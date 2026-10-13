@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แก้บั๊กให้น้องกระรอก - ฝึกทักษะ Debugging</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Mali & Kanit -->
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&family=Mali:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        wood: {
+                            100: '#FDF8F0',
+                            200: '#F5E6D3',
+                            500: '#D4A373',
+                            700: '#8B5A2B',
+                            800: '#5C3A21'
+                        },
+                        forest: {
+                            100: '#E8F5E9',
+                            400: '#66BB6A',
+                            600: '#2E7D32',
+                            800: '#1B5E20'
+                        },
+                        acorn: '#E67E22',
+                        pond: '#3498DB'
+                    },
+                    fontFamily: {
+                        mali: ['Mali', 'cursive', 'sans-serif'],
+                        kanit: ['Kanit', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Mali', 'Kanit', sans-serif;
+            background-color: #FDF8F0;
+            background-image: radial-gradient(#D4A373 0.75px, transparent 0.75px);
+            background-size: 18px 18px;
+        }
+        
+        .pulse-subtle {
+            animation: pulse-animation 2s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .shake-bug {
+            animation: shake 0.5s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+
+        .bounce-walk {
+            animation: bounce-step 0.3s ease-in-out;
+        }
+        @keyframes bounce-step {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F5E6D3;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #D4A373;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col justify-between">
+
+    <!-- Navigation & Header -->
+    <header class="bg-forest-600 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="text-3xl animate-bounce">🐿️</span>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-wide flex items-center gap-2">
+                        แก้บั๊กให้น้องกระรอก 
+                        <span class="text-xs bg-amber-400 text-forest-800 font-extrabold px-2 py-0.5 rounded-full uppercase">Debugging Game</span>
+                    </h1>
+                    <p class="text-xs text-forest-100 hidden sm:block">ค้นหาข้อผิดพลาดในเส้นทาง และช่วยน้องกระรอกเก็บลูกโอ๊กให้สำเร็จ!</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-4">
+                <div class="bg-forest-800/60 px-3 py-1.5 rounded-xl border border-forest-400/30 flex items-center gap-2">
+                    <span class="text-amber-300 font-bold text-sm">ด่าน:</span>
+                    <span id="levelIndicator" class="font-extrabold text-amber-200 text-base">1 / 4</span>
+                </div>
+                <button onclick="toggleSound()" id="soundBtn" class="bg-forest-700 hover:bg-forest-800 p-2 rounded-xl border border-forest-400/30 transition shadow-sm text-amber-200">
+                    <i class="fas fa-volume-up text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-grow w-full">
+        <!-- Level Tabs / Banner -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-wood-200 mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2" id="levelTabs">
+                <!-- Level buttons injected by JS -->
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openAiStoryModal()" class="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold px-3 py-2 rounded-xl shadow transition flex items-center gap-2">
+                    <i class="fas fa-magic"></i> สร้างภาพแผนที่ด้วย AI
+                </button>
+                <button onclick="askAiCoach()" class="bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm font-bold px-3 py-2 rounded-xl shadow transition flex items-center gap-2">
+                    <i class="fas fa-lightbulb"></i> ขอคำใบ้จากพี่กระรอก AI
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Workspace Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <div class="lg:col-cols-7 lg:col-span-7 bg-white rounded-3xl p-5 shadow-md border-2 border-wood-200 flex flex-col justify-between">
+                <div>
+                    <!-- Mission Prompt Banner -->
+                    <div id="missionBanner" class="bg-amber-50 border-l-4 border-amber-500 p-3.5 rounded-r-xl mb-4 text-sm flex items-start gap-3">
+                        <span class="text-2xl">🧩</span>
+                        <div>
+                            <h2 id="missionTitle" class="font-bold text-amber-900 text-base">ด่านที่ 1: แผนที่ที่มีบั๊ก (ทางเลี้ยวผิดไปบ่อน้ำ)</h2>
+                            <p id="missionDesc" class="text-amber-800 text-xs sm:text-sm mt-0.5">น้องกระรอกอยากไปหาลูกโอ๊กที่ต้นโอ๊กใหญ่ 🌳 แต่คำสั่งชุดนี้พาไปตกบ่อน้ำ 🌊! ให้นักเรียนหาว่า **พิกัดก้าวที่เท่าไหร่** ที่เดินผิด!</p>
+                        </div>
+                    </div>
+
+                    <!-- Map Board Container -->
+                    <div class="relative flex flex-col items-center justify-center p-2 sm:p-4 bg-emerald-100/60 rounded-2xl border-2 border-emerald-200/80">
+                        <!-- Legend / Map Status Bar -->
+                        <div class="w-full flex justify-between items-center text-xs mb-3 font-semibold px-2">
+                            <span class="text-forest-700 flex items-center gap-1">
+                                <span class="w-3 h-3 bg-emerald-400 inline-block rounded-full"></span> เส้นทางเดิน
+                            </span>
+                            <span id="statusMessage" class="text-amber-700 font-bold bg-amber-100 px-2.5 py-1 rounded-lg">
+                                🔍 ตรวจสอบเส้นทางว่าจุดไหนเดินผิด!
+                            </span>
+                        </div>
+
+                        <!-- Dynamic Grid Canvas View -->
+                        <div id="gridContainer" class="grid gap-1.5 sm:gap-2 p-2 bg-emerald-800/10 rounded-2xl border border-emerald-300 shadow-inner max-w-full">
+                            <!-- Grid cells rendered by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Debug Tools Toolbar below Map -->
+                <div class="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-slate-600">เครื่องมือแก้บั๊ก:</span>
+                        <button onclick="setMarkerTool('cross')" id="toolCross" class="tool-btn active bg-red-500 text-white font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-sm transition hover:bg-red-600">
+                            <span>❌</span> ปักจุดผิด (Bug)
+                        </button>
+                        <button onclick="setMarkerTool('arrow')" id="toolArrow" class="tool-btn bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-sm transition hover:bg-slate-300">
+                            <span>🚩</span> ชี้จุดแก้ไข
+                        </button>
+                    </div>
+                    <button onclick="resetCurrentLevel()" class="text-slate-500 hover:text-red-600 font-semibold flex items-center gap-1">
+                        <i class="fas fa-undo"></i> รีเซ็ตคำตอบ
+                    </button>
+                </div>
+            </div>
+
+            <div class="lg:col-span-5 flex flex-col gap-5">
+                
+                <!-- Command Sequence Panel (Path Program) -->
+                <div class="bg-white rounded-3xl p-5 shadow-md border-2 border-wood-200 flex-1 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-3 border-b border-wood-100 pb-2">
+                            <h3 class="font-bold text-wood-800 text-base flex items-center gap-2">
+                                <i class="fas fa-code text-amber-600"></i> ชุดคำสั่งเส้นทาง (Program Path)
+                            </h3>
+                            <span class="text-xs text-slate-400">คลิกที่ลูกศรเพื่อแก้ทิศทาง</span>
+                        </div>
+
+                        <!-- Step Cards List -->
+                        <div id="commandList" class="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                            <!-- Command items generated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Execution Controls -->
+                    <div class="mt-5 pt-3 border-t border-wood-100 space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="runExecution()" id="runBtn" class="bg-forest-600 hover:bg-forest-700 text-white font-bold py-3 px-4 rounded-2xl shadow-md transition flex items-center justify-center gap-2 text-sm sm:text-base">
+                                <i class="fas fa-play"></i> ทดสอบการเดิน (Run)
+                            </button>
+                            <button onclick="stepExecution()" id="stepBtn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-2xl shadow-md transition flex items-center justify-center gap-2 text-sm sm:text-base">
+                                <i class="fas fa-step-forward"></i> ทีละก้าว (Step)
+                            </button>
+                        </div>
+                        <button onclick="verifyDebugAnswer()" id="verifyBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2 text-sm sm:text-base pulse-subtle">
+                            <i class="fas fa-check-circle"></i> ยืนยันการแก้บั๊ก (Check Fix)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Learning Concept Card -->
+                <div class="bg-wood-100 rounded-3xl p-4 border border-wood-200 text-xs sm:text-sm text-wood-800">
+                    <h4 class="font-bold text-wood-800 mb-1 flex items-center gap-1.5">
+                        <i class="fas fa-graduation-cap text-amber-700"></i> สาระการเรียนรู้ Debugging:
+                    </h4>
+                    <p class="leading-relaxed text-wood-700">
+                        **บั๊ก (Bug)** คือข้อผิดพลาดในโปรแกรมหรือเส้นทาง การแก้บั๊ก (Debugging) ทำได้โดย:
+                        <br>1. **Trace**: ลองเดินตามทีละก้าวหาจุดที่ผิด
+                        <br>2. **Identify**: ใช้ ❌ ปักหมุดจุดที่ผิดทิศทาง
+                        <br>3. **Patch**: เปลี่ยนลูกศรคำสั่งให้ถูกต้อง
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-wood-800 text-wood-200 text-xs py-4 text-center mt-8 border-t-4 border-amber-600">
+        <p>🐿️ สื่อการเรียนรู้สวดฝึกทักษะการคิดเชิงคำนวณ (Computational Thinking) สำหรับเด็ก | แก้บั๊กให้น้องกระรอก</p>
+    </footer>
+
+    <div id="aiModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-4 border-amber-400 relative animate-bounce-short">
+            <button onclick="closeAiModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold">
+                <i class="fas fa-times"></i>
+            </button>
+
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-amber-100 text-2xl flex items-center justify-center rounded-2xl border border-amber-300">
+                    🐿️
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-slate-800">พี่กระรอก AI Coach</h3>
+                    <p class="text-xs text-slate-500">ช่วยวิเคราะห์และให้คำแนะนำในการแก้บั๊ก</p>
+                </div>
+            </div>
+
+            <div id="aiContent" class="bg-amber-50/80 rounded-2xl p-4 text-sm text-slate-700 min-h-[100px] flex items-center justify-center border border-amber-200">
+                <span class="animate-pulse text-amber-800 font-semibold">กำลังวิเคราะห์ข้อผิดพลาดในแผนที่... 🔍</span>
+            </div>
+
+            <div class="mt-5 text-right">
+                <button onclick="closeAiModal()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-5 py-2 rounded-xl text-sm transition shadow">
+                    เข้าใจแล้ว! ไปลองแก้ดู
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="aiStoryModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border-4 border-purple-400 relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeAiStoryModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold">
+                <i class="fas fa-times"></i>
+            </button>
+
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 bg-purple-100 text-2xl flex items-center justify-center rounded-2xl border border-purple-300">
+                    🎨
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-slate-800">สร้างภาพแผนที่การ์ตูนด้วย Gemini AI</h3>
+                    <p class="text-xs text-slate-500">สร้างภาพแผนที่สมบัติของด่านที่ 1 (บั๊ก) และ ด่านที่ 2 (แก้แล้ว)</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <!-- Buggy Map Card -->
+                <div class="border border-purple-200 rounded-2xl p-3 bg-purple-50 flex flex-col items-center">
+                    <h4 class="font-bold text-xs text-purple-900 mb-2">ด่านที่ 1: แผนที่มีบั๊ก (ไปที่บ่อน้ำ) 🌊</h4>
+                    <div id="imgBuggyContainer" class="w-full h-48 bg-purple-100 rounded-xl flex items-center justify-center overflow-hidden border border-purple-200">
+                        <span class="text-xs text-purple-600 p-2 text-center">กดปุ่มด้านล่างเพื่อวาดภาพ...</span>
+                    </div>
+                    <button onclick="generateMapArt('buggy')" class="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold py-2 rounded-xl transition">
+                        <i class="fas fa-paint-brush"></i> วาดภาพแผนที่บั๊ก
+                    </button>
+                </div>
+
+                <!-- Fixed Map Card -->
+                <div class="border border-emerald-200 rounded-2xl p-3 bg-emerald-50 flex flex-col items-center">
+                    <h4 class="font-bold text-xs text-emerald-900 mb-2">ด่านที่ 2: แผนที่แก้บั๊กแล้ว (ไปต้นโอ๊ก) 🌳</h4>
+                    <div id="imgFixedContainer" class="w-full h-48 bg-emerald-100 rounded-xl flex items-center justify-center overflow-hidden border border-emerald-200">
+                        <span class="text-xs text-emerald-600 p-2 text-center">กดปุ่มด้านล่างเพื่อวาดภาพ...</span>
+                    </div>
+                    <button onclick="generateMapArt('fixed')" class="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded-xl transition">
+                        <i class="fas fa-paint-brush"></i> วาดภาพแผนที่แก้แล้ว
+                    </button>
+                </div>
+            </div>
+
+            <div class="text-xs text-slate-500 bg-slate-100 p-3 rounded-xl border border-slate-200">
+                💡 **หมายเหตุ:** ระบบใช้ Gemini 3.1 Flash Lite Image ในการประมวลผลคำสั่งตาม Prompt ที่กำหนดสำหรับด่านที่ 1 และ 2
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sound state
+        let soundEnabled = true;
+
+        // Active tool: 'cross' (mark bug location on map) or 'arrow' (place corrective arrow)
+        let activeTool = 'cross';
+
+        // Current level index (0-based)
+        let currentLevelIdx = 0;
+
+        // Animation timer reference
+        let animTimer = null;
+
+        // Player step index during animation execution
+        let currentAnimStep = 0;
+
+        // User placed bug markers on grid tiles: key = `${r}_${c}`, value = 'X' or direction arrow
+        let userGridMarkers = {};
+
+        // Level definitions
+        const levels = [
+            {
+                id: 1,
+                name: "ด่านที่ 1 (เขาวงกตบ่อน้ำ)",
+                gridSize: { rows: 5, cols: 5 },
+                start: { r: 0, c: 0 },
+                goal: { r: 3, c: 3 }, // Acorn / Oak Tree
+                obstacles: [
+                    { r: 2, c: 0, type: 'rock', icon: '🪨' },
+                    { r: 1, c: 2, type: 'pond', icon: '🌊', desc: 'บ่อน้ำ' }, // Bug destination
+                    { r: 4, c: 1, type: 'thorn', icon: '🌵' }
+                ],
+                // Buggy Path Sequence: 
+                // Intended path: Right -> Right -> Down -> Down -> Right -> Down (to 3,3)
+                // Buggy sequence: Right -> Right -> Down (goes to 1,2 which is Pond!)
+                commands: [
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา' },
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา' },
+                    { dir: 'DOWN',  icon: '⬇️', name: 'เดินลง', isBug: true, correctDir: 'RIGHT' }, // BUG STEP! Leads to Pond (1,2)
+                    { dir: 'DOWN',  icon: '⬇️', name: 'เดินลง' },
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา' },
+                    { dir: 'DOWN',  icon: '⬇️', name: 'เดินลง' }
+                ],
+                buggyTile: { r: 1, c: 2 }, // Pond location where bug lands
+                bugStepIdx: 2, // 3rd step (0-indexed 2)
+                hint: "ลองดูคำสั่งก้าวที่ 3 (เดินลง) มันทำให้กระรอกเลี้ยวลงไปที่บ่อน้ำ 🌊 สังเกตว่าถ้าจะไปต่อ ควรต้องเดินขวาแทน!"
+            },
+            {
+                id: 2,
+                name: "ด่านที่ 2 (หลบหินโสโครก)",
+                gridSize: { rows: 5, cols: 5 },
+                start: { r: 1, c: 0 },
+                goal: { r: 1, c: 4 },
+                obstacles: [
+                    { r: 1, c: 2, type: 'rock', icon: '🪨' },
+                    { r: 3, c: 3, type: 'pond', icon: '🌊' }
+                ],
+                // Intended: Up -> Right -> Right -> Right -> Down -> Right
+                // Buggy: Right -> Right (Hits rock at 1,2!)
+                commands: [
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา', isBug: true, correctDir: 'UP' },
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา' },
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา' },
+                    { dir: 'DOWN',  icon: '⬇️', name: 'เดินลง' }
+                ],
+                buggyTile: { r: 1, c: 2 },
+                bugStepIdx: 0,
+                hint: "ก้าวแรกสั่งให้เดินขวาตรงๆ แต่มีก้อนหินใหญ่ 🪨 ขวางทางอยู่! ต้องอ้อมขึ้นข้างบนก่อนนะ"
+            },
+            {
+                id: 3,
+                name: "ด่านที่ 3 (หยุดก่อนถึงเป้าหมาย)",
+                gridSize: { rows: 5, cols: 5 },
+                start: { r: 4, c: 0 },
+                goal: { r: 0, c: 4 },
+                obstacles: [
+                    { r: 2, c: 2, type: 'pond', icon: '🌊' }
+                ],
+                // Buggy: Off-by-one error! Stops 1 step short
+                commands: [
+                    { dir: 'UP',    icon: '⬆️', name: 'เดินขึ้น' },
+                    { dir: 'UP',    icon: '⬆️', name: 'เดินขึ้น' },
+                    { dir: 'UP',    icon: '⬆️', name: 'เดินขึ้น' },
+                    { dir: 'UP',    icon: '⬆️', name: 'เดินขึ้น' },
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา' },
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา' },
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา', isBug: true, correctDir: 'RIGHT' } // Missing 1 more RIGHT
+                ],
+                buggyTile: { r: 0, c: 3 },
+                bugStepIdx: 6,
+                hint: "น้องกระรอกเดินมาเกือบถึงแล้ว แต่นับก้าวขาดไป 1 ก้าว! ต้องเพิ่มก้าวเดินขวาอีก 1 ก้าว"
+            },
+            {
+                id: 4,
+                name: "ด่านที่ 4 (วนเป็นวงกลม Infinite Loop)",
+                gridSize: { rows: 6, cols: 6 },
+                start: { r: 0, c: 0 },
+                goal: { r: 4, c: 4 },
+                obstacles: [
+                    { r: 2, c: 4, type: 'pond', icon: '🌊' }
+                ],
+                commands: [
+                    { dir: 'DOWN',  icon: '⬇️', name: 'เดินลง' },
+                    { dir: 'RIGHT', icon: '➡️', name: 'เดินขวา' },
+                    { dir: 'UP',    icon: '⬆️', name: 'เดินขึ้น', isBug: true, correctDir: 'DOWN' }, // Loop back up!
+                    { dir: 'LEFT',  icon: '⬅️', name: 'เดินซ้าย' },
+                    { dir: 'DOWN',  icon: '⬇️', name: 'เดินลง' }
+                ],
+                buggyTile: { r: 0, c: 1 },
+                bugStepIdx: 2,
+                hint: "น้องกระรอกเดินลง แล้วเดินขวา แต่ดันสั่งเลี้ยวขึ้นบนกลับที่เดิม เดินวนเป็นวงกลมไม่ถึงเป้าหมายสักที!"
+            }
+        ];
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'step') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(150, now + 0.08);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'splash') {
+                    // Noise / Splash simulation
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120, now);
+                    osc.frequency.linearRampToValueAtTime(60, now + 0.25);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'success') {
+                    // Cheerful arpeggio
+                    const freqs = [523.25, 659.25, 783.99, 1046.50];
+                    freqs.forEach((f, i) => {
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.connect(g);
+                        g.connect(audioCtx.destination);
+                        o.frequency.setValueAtTime(f, now + i * 0.1);
+                        g.gain.setValueAtTime(0.2, now + i * 0.1);
+                        g.gain.linearRampToValueAtTime(0.01, now + i * 0.1 + 0.2);
+                        o.start(now + i * 0.1);
+                        o.stop(now + i * 0.1 + 0.2);
+                    });
+                } else if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                }
+            } catch (e) {
+                console.log("Audio play error:", e);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('soundBtn');
+            btn.innerHTML = soundEnabled ? '<i class="fas fa-volume-up text-lg"></i>' : '<i class="fas fa-volume-mute text-lg"></i>';
+        }
+
+        window.onload = function() {
+            renderLevelTabs();
+            loadLevel(0);
+        };
+
+        function renderLevelTabs() {
+            const container = document.getElementById('levelTabs');
+            container.innerHTML = levels.map((lvl, idx) => `
+                <button onclick="loadLevel(${idx})" id="lvlTab_${idx}" class="px-3 py-1.5 rounded-xl font-bold text-xs sm:text-sm border transition ${idx === currentLevelIdx ? 'bg-forest-600 text-white border-forest-700 shadow-sm' : 'bg-wood-100 text-wood-800 border-wood-300 hover:bg-wood-200'}">
+                    📌 ด่าน ${lvl.id}
+                </button>
+            `).join('');
+        }
+
+        function loadLevel(idx) {
+            playSound('click');
+            currentLevelIdx = idx;
+            const lvl = levels[idx];
+
+            document.getElementById('levelIndicator').innerText = `${lvl.id} / ${levels.length}`;
+            document.getElementById('missionTitle').innerText = `${lvl.name}`;
+            
+            // Update level tabs UI
+            levels.forEach((_, i) => {
+                const tab = document.getElementById(`lvlTab_${i}`);
+                if (tab) {
+                    if (i === idx) {
+                        tab.className = "px-3 py-1.5 rounded-xl font-bold text-xs sm:text-sm border transition bg-forest-600 text-white border-forest-700 shadow-sm";
+                    } else {
+                        tab.className = "px-3 py-1.5 rounded-xl font-bold text-xs sm:text-sm border transition bg-wood-100 text-wood-800 border-wood-300 hover:bg-wood-200";
+                    }
+                }
+            });
+
+            // Reset state
+            userGridMarkers = {};
+            currentAnimStep = 0;
+            if (animTimer) clearInterval(animTimer);
+
+            renderGrid();
+            renderCommandList();
+            updateStatusMessage("🔍 ตรวจสอบเส้นทางว่าจุดไหนเดินผิด!", "amber");
+        }
+
+        function renderGrid(playerPos = null) {
+            const lvl = levels[currentLevelIdx];
+            const container = document.getElementById('gridContainer');
+            
+            // Set grid dimensions
+            container.style.gridTemplateColumns = `repeat(${lvl.gridSize.cols}, minmax(0, 1fr))`;
+
+            let html = '';
+            const currPos = playerPos || lvl.start;
+
+            for (let r = 0; r < lvl.gridSize.rows; r++) {
+                for (let c = 0; c < lvl.gridSize.cols; c++) {
+                    const isStart = (r === lvl.start.r && c === lvl.start.c);
+                    const isGoal = (r === lvl.goal.r && c === lvl.goal.c);
+                    const isPlayer = (r === currPos.r && c === currPos.c);
+                    
+                    const obstacle = lvl.obstacles.find(o => o.r === r && o.c === c);
+                    const markerKey = `${r}_${c}`;
+                    const marker = userGridMarkers[markerKey];
+
+                    // Grid cell base style
+                    let bgStyle = "bg-amber-50/90 border-emerald-200/60";
+                    if ((r + c) % 2 === 0) bgStyle = "bg-amber-100/60 border-emerald-200/60";
+
+                    html += `
+                        <div onclick="onGridCellClick(${r}, ${c})" class="relative aspect-square w-12 sm:w-16 md:w-20 rounded-2xl border-2 flex flex-col items-center justify-center cursor-pointer select-none transition-all hover:scale-105 hover:z-10 shadow-sm ${bgStyle}">
+                            
+                            <!-- Coordinate Badge -->
+                            <span class="absolute top-1 left-1.5 text-[9px] font-bold text-emerald-800/40">
+                                (${r},${c})
+                            </span>
+
+                            <!-- Cell Content Icons -->
+                            <div class="relative z-10 flex flex-col items-center justify-center">
+                    `;
+
+                    if (isPlayer) {
+                        html += `<span class="text-2xl sm:text-3xl md:text-4xl animate-bounce">🐿️</span>`;
+                    } else if (isGoal) {
+                        html += `<span class="text-2xl sm:text-3xl md:text-4xl text-amber-600 pulse-subtle">🌳🌰</span>`;
+                    } else if (obstacle) {
+                        html += `<span class="text-2xl sm:text-3xl md:text-4xl">${obstacle.icon}</span>`;
+                    } else if (isStart) {
+                        html += `<span class="text-xs font-extrabold text-forest-700 bg-forest-100 px-1.5 py-0.5 rounded-md">จุดเริ่ม</span>`;
+                    }
+
+                    // User Bug Marker Overlay (Red Cross or Red Arrow)
+                    if (marker) {
+                        if (marker === 'X') {
+                            html += `<div class="absolute inset-0 flex items-center justify-center bg-red-500/20 rounded-xl border-2 border-red-500">
+                                        <span class="text-red-600 font-extrabold text-xl sm:text-3xl shake-bug">❌</span>
+                                     </div>`;
+                        } else {
+                            html += `<div class="absolute inset-0 flex items-center justify-center bg-amber-500/20 rounded-xl border-2 border-amber-500">
+                                        <span class="text-red-600 font-extrabold text-xl sm:text-2xl">🚩 ${marker}</span>
+                                     </div>`;
+                        }
+                    }
+
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            container.innerHTML = html;
+        }
+
+        function setMarkerTool(tool) {
+            playSound('click');
+            activeTool = tool;
+            document.getElementById('toolCross').className = tool === 'cross' 
+                ? "tool-btn active bg-red-500 text-white font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-sm transition hover:bg-red-600"
+                : "tool-btn bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-sm transition hover:bg-slate-300";
+
+            document.getElementById('toolArrow').className = tool === 'arrow'
+                ? "tool-btn active bg-amber-500 text-white font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-sm transition hover:bg-amber-600"
+                : "tool-btn bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-sm transition hover:bg-slate-300";
+        }
+
+        function onGridCellClick(r, c) {
+            playSound('click');
+            const key = `${r}_${c}`;
+
+            if (userGridMarkers[key]) {
+                delete userGridMarkers[key];
+            } else {
+                if (activeTool === 'cross') {
+                    userGridMarkers[key] = 'X';
+                } else {
+                    userGridMarkers[key] = '➡️';
+                }
+            }
+
+            renderGrid();
+        }
+
+        function renderCommandList() {
+            const lvl = levels[currentLevelIdx];
+            const container = document.getElementById('commandList');
+
+            container.innerHTML = lvl.commands.map((cmd, idx) => `
+                <div id="cmdCard_${idx}" class="flex items-center justify-between p-2.5 rounded-2xl border-2 transition ${idx === currentAnimStep ? 'bg-amber-100 border-amber-400 shadow-sm' : 'bg-slate-50 border-slate-200'}">
+                    <div class="flex items-center gap-3">
+                        <span class="w-6 h-6 rounded-full bg-wood-200 text-wood-800 text-xs font-bold flex items-center justify-center">
+                            ${idx + 1}
+                        </span>
+                        <span class="text-xl">${cmd.icon}</span>
+                        <span class="font-bold text-slate-700 text-sm">${cmd.name}</span>
+                    </div>
+
+                    <!-- Change Direction Arrow Button -->
+                    <div class="flex items-center gap-1">
+                        <button onclick="cycleCommandDir(${idx})" class="text-xs bg-white border border-slate-300 hover:bg-amber-50 px-2 py-1 rounded-lg text-slate-600 font-bold transition flex items-center gap-1">
+                            <i class="fas fa-sync-alt text-[10px]"></i> เปลี่ยนทิศ
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function cycleCommandDir(idx) {
+            playSound('click');
+            const lvl = levels[currentLevelIdx];
+            const dirs = ['UP', 'RIGHT', 'DOWN', 'LEFT'];
+            const icons = { 'UP': '⬆️', 'RIGHT': '➡️', 'DOWN': '⬇️', 'LEFT': '⬅️' };
+            const names = { 'UP': 'เดินขึ้น', 'RIGHT': 'เดินขวา', 'DOWN': 'เดินลง', 'LEFT': 'เดินซ้าย' };
+
+            const curr = lvl.commands[idx].dir;
+            const nextIdx = (dirs.indexOf(curr) + 1) % dirs.length;
+            
+            lvl.commands[idx].dir = dirs[nextIdx];
+            lvl.commands[idx].icon = icons[dirs[nextIdx]];
+            lvl.commands[idx].name = names[dirs[nextIdx]];
+
+            renderCommandList();
+        }
+
+        function runExecution() {
+            playSound('click');
+            if (animTimer) clearInterval(animTimer);
+            currentAnimStep = 0;
+            
+            const lvl = levels[currentLevelIdx];
+            let pos = { ...lvl.start };
+
+            renderGrid(pos);
+            updateStatusMessage("🏃 น้องกระรอกกำลังเดินตามชุดคำสั่ง...", "blue");
+
+            animTimer = setInterval(() => {
+                if (currentAnimStep >= lvl.commands.length) {
+                    clearInterval(animTimer);
+                    checkFinalPosition(pos);
+                    return;
+                }
+
+                const cmd = lvl.commands[currentAnimStep];
+                pos = getNextPos(pos, cmd.dir, lvl.gridSize);
+
+                playSound('step');
+                renderGrid(pos);
+                highlightCommandCard(currentAnimStep);
+
+                // Check for obstacle crash mid-way
+                const obstacle = lvl.obstacles.find(o => o.r === pos.r && o.c === pos.c);
+                if (obstacle) {
+                    clearInterval(animTimer);
+                    if (obstacle.type === 'pond') {
+                        playSound('splash');
+                        updateStatusMessage("ตูม! 🌊 น้องกระรอกตกบ่อน้ำ! นี่คือจุดเกิดบั๊ก!", "red");
+                    } else {
+                        updateStatusMessage(`โครม! ${obstacle.icon} ชนสิ่งกีดขวาง!`, "red");
+                    }
+                    return;
+                }
+
+                currentAnimStep++;
+            }, 600);
+        }
+
+        function stepExecution() {
+            playSound('click');
+            const lvl = levels[currentLevelIdx];
+            
+            if (currentAnimStep >= lvl.commands.length) {
+                currentAnimStep = 0;
+            }
+
+            let pos = { ...lvl.start };
+            for (let i = 0; i < currentAnimStep; i++) {
+                pos = getNextPos(pos, lvl.commands[i].dir, lvl.gridSize);
+            }
+
+            const cmd = lvl.commands[currentAnimStep];
+            pos = getNextPos(pos, cmd.dir, lvl.gridSize);
+
+            playSound('step');
+            renderGrid(pos);
+            highlightCommandCard(currentAnimStep);
+
+            const obstacle = lvl.obstacles.find(o => o.r === pos.r && o.c === pos.c);
+            if (obstacle) {
+                if (obstacle.type === 'pond') playSound('splash');
+                updateStatusMessage(`เจอบั๊กตรงก้าวนี้! ติด ${obstacle.icon}`, "red");
+            } else if (pos.r === lvl.goal.r && pos.c === lvl.goal.c) {
+                playSound('success');
+                updateStatusMessage("🎉 เย้! เดินถึงลูกโอ๊กแล้ว!", "green");
+            }
+
+            currentAnimStep++;
+        }
+
+        function getNextPos(curr, dir, bounds) {
+            let next = { ...curr };
+            if (dir === 'UP') next.r = Math.max(0, curr.r - 1);
+            if (dir === 'DOWN') next.r = Math.min(bounds.rows - 1, curr.r + 1);
+            if (dir === 'LEFT') next.c = Math.max(0, curr.c - 1);
+            if (dir === 'RIGHT') next.c = Math.min(bounds.cols - 1, curr.c + 1);
+            return next;
+        }
+
+        function highlightCommandCard(idx) {
+            const cards = document.querySelectorAll('#commandList > div');
+            cards.forEach((card, i) => {
+                if (i === idx) {
+                    card.className = "flex items-center justify-between p-2.5 rounded-2xl border-2 transition bg-amber-200 border-amber-500 shadow-md scale-102";
+                } else {
+                    card.className = "flex items-center justify-between p-2.5 rounded-2xl border-2 transition bg-slate-50 border-slate-200 opacity-80";
+                }
+            });
+        }
+
+        function checkFinalPosition(pos) {
+            const lvl = levels[currentLevelIdx];
+            if (pos.r === lvl.goal.r && pos.c === lvl.goal.c) {
+                playSound('success');
+                confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                updateStatusMessage("🏆 ยอดเยี่ยมมาก! น้องกระรอกได้รับลูกโอ๊กอย่างปลอดภัย!", "green");
+            } else {
+                updateStatusMessage("❌ ยังไม่ถึงลูกโอ๊ก! ลองตรวจสอบจุดที่เดินผิดอีกทีนะ", "red");
+            }
+        }
+
+        function verifyDebugAnswer() {
+            playSound('click');
+            const lvl = levels[currentLevelIdx];
+            
+            // Check if player correctly modified the code commands to reach the goal
+            let pos = { ...lvl.start };
+            let hitObstacle = false;
+
+            for (let i = 0; i < lvl.commands.length; i++) {
+                pos = getNextPos(pos, lvl.commands[i].dir, lvl.gridSize);
+                if (lvl.obstacles.some(o => o.r === pos.r && o.c === pos.c)) {
+                    hitObstacle = true;
+                    break;
+                }
+            }
+
+            const reachedGoal = (pos.r === lvl.goal.r && pos.c === lvl.goal.c);
+
+            // Check if user placed a ❌ marker near the buggy tile
+            const bugTileKey = `${lvl.buggyTile.r}_${lvl.buggyTile.c}`;
+            const markedBugOnGrid = userGridMarkers[bugTileKey] === 'X' || Object.keys(userGridMarkers).length > 0;
+
+            if (reachedGoal && !hitObstacle) {
+                playSound('success');
+                confetti({ particleCount: 120, spread: 80, origin: { y: 0.5 } });
+                
+                updateStatusMessage("✨ ถูกต้อง! แก้บั๊กสำเร็จแล้ว น้องกระรอกดีใจมาก!", "green");
+                
+                setTimeout(() => {
+                    if (currentLevelIdx < levels.length - 1) {
+                        if (confirm(`🎉 ยินดีด้วย! แก้บั๊ก ด่านที่ ${lvl.id} สำเร็จ!\nต้องการไปต่อด่านที่ ${lvl.id + 1} หรือไม่?`)) {
+                            loadLevel(currentLevelIdx + 1);
+                        }
+                    } else {
+                        alert("🎉 ยอดเยี่ยมที่สุด! คุณผ่านการฝึกทักษะ Debugging แก้บั๊กให้น้องกระรอกครบทุกด่านแล้ว!");
+                    }
+                }, 400);
+
+            } else {
+                playSound('splash');
+                let feedback = "❌ ยังมีบั๊กอยู่! ";
+                if (markedBugOnGrid) {
+                    feedback += "คุณปักหมุดจุดผิดแล้ว ลองเปลี่ยนทิศทางลูกศรในชุดคำสั่งให้ถูกต้องด้วยนะ!";
+                } else {
+                    feedback += "ลองกด 'ทดสอบการเดิน' ดูว่ากระรอกไปติดตรงไหน แล้วใช้ ❌ ปักจุดที่ผิด!";
+                }
+                updateStatusMessage(feedback, "red");
+            }
+        }
+
+        function resetCurrentLevel() {
+            playSound('click');
+            loadLevel(currentLevelIdx);
+        }
+
+        function updateStatusMessage(msg, color) {
+            const el = document.getElementById('statusMessage');
+            el.innerText = msg;
+            if (color === 'green') {
+                el.className = "text-emerald-800 font-bold bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-300 shadow-sm";
+            } else if (color === 'red') {
+                el.className = "text-red-800 font-bold bg-red-100 px-3 py-1 rounded-lg border border-red-300 shadow-sm shake-bug";
+            } else if (color === 'blue') {
+                el.className = "text-blue-800 font-bold bg-blue-100 px-3 py-1 rounded-lg border border-blue-300 shadow-sm";
+            } else {
+                el.className = "text-amber-800 font-bold bg-amber-100 px-3 py-1 rounded-lg border border-amber-300 shadow-sm";
+            }
+        }
+
+        async function askAiCoach() {
+            playSound('click');
+            const modal = document.getElementById('aiModal');
+            const content = document.getElementById('aiContent');
+            
+            modal.classList.remove('hidden');
+            content.innerHTML = `<div class="flex items-center gap-2 text-amber-800 font-semibold"><i class="fas fa-spinner fa-spin"></i> พี่กระรอก AI กำลังอ่านแผนที่เพื่อหาคำใบ้...</div>`;
+
+            const lvl = levels[currentLevelIdx];
+            const systemPrompt = "คุณคือพี่กระรอกใจดี ผู้สอนทักษะ Computational Thinking และ Debugging ให้เด็กๆ ประถมศึกษา กรุณาอธิบายคำใบ้สั้นๆ ในภาษาไทยแบบน่ารัก สดใส ไม่เกิน 3 ประโยค";
+            const userQuery = `ด่านนี้คือ "${lvl.name}" คำสั่งปัจจุบันคือ: ${lvl.commands.map(c=>c.name).join(', ')}. จุดเกิดบั๊กอยู่ใกล้พิกัด (${lvl.buggyTile.r}, ${lvl.buggyTile.c}). ช่วยอธิบายสั้นๆ ให้เด็กๆ ฟังว่าทำไมถึงเกิดบั๊ก และต้องแก้ไขอย่างไร`;
+
+            const apiKey = ""; // Canvas runtime environment automatically inserts key if needed
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: userQuery }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                    })
+                });
+
+                const data = await response.json();
+                const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (reply) {
+                    content.innerHTML = `<p class="leading-relaxed font-medium text-slate-800">🐿️ "${reply}"</p>`;
+                } else {
+                    content.innerText = `🐿️ คำใบ้: ${lvl.hint}`;
+                }
+            } catch (err) {
+                console.log("Gemini API error, falling back to offline hint:", err);
+                content.innerText = `🐿️ คำใบ้: ${lvl.hint}`;
+            }
+        }
+
+        function closeAiModal() {
+            playSound('click');
+            document.getElementById('aiModal').classList.add('hidden');
+        }
+
+        function openAiStoryModal() {
+            playSound('click');
+            document.getElementById('aiStoryModal').classList.remove('hidden');
+        }
+
+        function closeAiStoryModal() {
+            playSound('click');
+            document.getElementById('aiStoryModal').classList.add('hidden');
+        }
+
+        async function generateMapArt(type) {
+            playSound('click');
+            const targetContainer = type === 'buggy' ? 'imgBuggyContainer' : 'imgFixedContainer';
+            const container = document.getElementById(targetContainer);
+
+            container.innerHTML = `<div class="flex flex-col items-center gap-2 p-3 text-center">
+                <i class="fas fa-spinner fa-spin text-purple-600 text-2xl"></i>
+                <span class="text-xs font-bold text-slate-600">Gemini 3.1 Flash Lite Image กำลังวาดภาพการ์ตูน...</span>
+            </div>`;
+
+            let promptText = "";
+            if (type === 'buggy') {
+                promptText = "ด่านที่ 1 (แผนที่ที่มีบั๊ก): แผนที่จากมุมมองบน, มีเส้นทางจากจุดเริ่มต้นไปยังต้นโอ๊ก, แต่เส้นทางเลี้ยวผิดไปที่บ่อน้ำแทน, มีตัวการ์ตูนกระรอกน้อยยืนงงอยู่, ภาพการ์ตูน, สไตล์แผนที่สมบัติน่ารัก";
+            } else {
+                promptText = "ด่านที่ 2 (แผนที่ที่แก้บั๊กแล้ว): แผนที่เหมือนเดิมทุกอย่าง แต่เส้นทางถูกแก้ให้เลี้ยวไปที่ต้นโอ๊กอย่างถูกต้อง, มีตัวการ์ตูนกระรอกน้อยกำลังดีใจที่เจอลูกโอ๊ก, ภาพการ์ตูนสีสันสดใส";
+            }
+
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: promptText }] }],
+                generationConfig: {
+                    responseModalities: ['TEXT', 'IMAGE']
+                }
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+                if (base64Data) {
+                    const imgUrl = `data:image/png;base64,${base64Data}`;
+                    container.innerHTML = `<img src="${imgUrl}" alt="Generated Map Art" class="w-full h-full object-cover rounded-xl shadow-sm" />`;
+                } else {
+                    container.innerHTML = `<div class="text-xs text-red-500 p-2 text-center">ไม่สามารถวาดภาพได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง</div>`;
+                }
+            } catch (err) {
+                console.error("Image generation error:", err);
+                container.innerHTML = `<div class="text-xs text-red-500 p-2 text-center">เกิดข้อผิดพลาดในการเชื่อมต่อ AI</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
